@@ -1,0 +1,426 @@
+---
+title: "The Impact of Pace, Accuracy, and Defense on Set Outcomes in Dodgeball"
+author: "Kevin Hernandez"
+date: "2025-04-20"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggridges)
+library(kableExtra)
+library(knitr)
+```
+
+
+
+```{r}
+# Read the cleaned dataset from CSV
+champ <- read_csv(file = "champion.csv")
+
+# Preview the first few rows of the dataset
+head(champ)
+```
+```{r}
+# Display the full dataset in a styled table format using kableExtra
+champ %>%
+  kbl() %>%                             # Convert data to a basic HTML table
+  kable_classic(full_width = FALSE)     # Apply a clean, classic style and limit table width
+
+```
+
+
+```{r}
+# Convert selected variables to character
+champ_cat <- champ %>%
+  mutate(
+    GENDER = as.character(GENDER),
+    HALF = as.character(HALF),
+    HOME_RESULT = as.character(HOME_RESULT),
+    FINISH = as.character(FINISH)
+  )
+
+# Create categorical summary
+cat_summary <- champ_cat %>%
+  select(GENDER, HALF, HOME_RESULT, FINISH) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+  group_by(Variable, Value) %>%
+  summarise(Frequency = n(), .groups = "drop") %>%
+  group_by(Variable) %>%
+  mutate(Relative_Frequency = round((Frequency / sum(Frequency)) * 100, 1)) %>%
+  rename(Possible_Value = Value) %>%
+  select(Variable, Possible_Value, Frequency, Relative_Frequency)
+
+# Display table
+cat_summary %>%
+  kbl(caption = "Summary of Categorical Variables") %>%
+  kable_classic(full_width = F)
+
+```
+```{r}
+# Select only numeric columns
+num_summary <- champ %>%
+  select(where(is.numeric)) %>%
+  summarise(across(everything(), list(
+    Minimum = min,
+    Maximum = max,
+    Mean = mean,
+    Standard_Deviation = sd
+  ), na.rm = TRUE)) %>%
+  pivot_longer(cols = everything(),
+               names_to = c("Variable", ".value"),
+               names_sep = "_")
+
+# Show as a formatted table
+num_summary %>%
+  kbl(caption = "Summary of Numeric Variables", digits = 2) %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+
+```{r}
+# Add new calculated variables:
+# - Total_Throws: sum of home and away throws
+# - Accuracy: ratio of total hits to total throws
+# - FINISH: capitalized for consistent labeling
+champ <- champ %>%
+  mutate(
+    Total_Throws = H_THROW + A_THROW,
+    Accuracy = (H_HITS + A_HITS) / Total_Throws,
+    FINISH = case_when(
+      FINISH == "eliminated" ~ "Eliminated",
+      FINISH == "timed out" ~ "Timed Out",
+      TRUE ~ FINISH
+    )
+  )
+
+# Scatter plot showing the relationship between Pace and Accuracy,
+# differentiated by Set Finish (Eliminated vs Timed Out)
+ggplot(champ, aes(x = Total_Throws, y = Accuracy, color = FINISH)) +
+  geom_point(shape = 4, size = 3, stroke = 1.5) +  # X-shaped points, larger and bolder
+  scale_color_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Pace vs Accuracy by Set Finish",
+    x = "Total Throws (Pace)",
+    y = "Accuracy Rate",
+    color = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 16),
+    axis.title.y = element_text(face = "bold", size = 16),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    legend.position = "top"
+  )
+
+```
+
+```{r}
+# Calculate average block percentage between home and away
+champ <- champ %>%
+  mutate(BLOCK_PCT = (H_BLOCK_PCT_NUM + A_BLOCK_PCT_NUM) / 2)
+
+# Boxplot of Pace (Throws per Minute) by Set Finish
+ggplot(champ, aes(x = FINISH, y = PACE, fill = FINISH)) +
+  geom_boxplot(width = 0.6, outlier.shape = 21, outlier.fill = "white", outlier.color = "black", outlier.size = 2) +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Pace by Set Finish",
+    subtitle = "Distribution of Throws per Minute",
+    x = "Set Finish",
+    y = "Throws per Minute",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 16),
+    axis.text = element_text(size = 14),
+    legend.position = "none"
+  )
+
+# Boxplot of Block Percentage by Set Finish
+ggplot(champ, aes(x = FINISH, y = BLOCK_PCT, fill = FINISH)) +
+  geom_boxplot(width = 0.6, outlier.shape = 21, outlier.fill = "white", outlier.color = "black", outlier.size = 2) +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Block Percentage by Set Finish",
+    subtitle = "Distribution of Defensive Block Success",
+    x = "Set Finish",
+    y = "Block Percentage (%)",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 16),
+    axis.text = element_text(size = 14),
+    legend.position = "none"
+  )
+```
+```{r}
+# Boxplot for Block%
+ggplot(champ, aes(x = FINISH, y = BLOCK_PCT, fill = FINISH)) +
+  geom_boxplot(width = 0.6, outlier.shape = 21, outlier.fill = "white", outlier.color = "black", outlier.size = 2) +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Block Percentage by Set Finish",
+    subtitle = "Distribution of Defensive Block Success",
+    x = "Set Finish",
+    y = "Block Percentage (%)",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 16),
+    axis.text = element_text(size = 14),
+    legend.position = "none"
+  )
+```
+
+```{r}
+# Prepare Block % variable
+champ <- champ %>%
+  mutate(BLOCK_PCT = (H_BLOCK_PCT_NUM + A_BLOCK_PCT_NUM) / 2)
+
+# Make sure Set Finish labels are properly capitalized
+champ <- champ %>%
+  mutate(FINISH = case_when(
+    FINISH == "eliminated" ~ "Eliminated",
+    FINISH == "timed out" ~ "Timed Out",
+    TRUE ~ FINISH
+  ))
+
+# Plot
+ggplot(champ, aes(x = FINISH, y = BLOCK_PCT, fill = FINISH)) +
+  geom_boxplot(width = 0.6, outlier.shape = 21, outlier.fill = "white", outlier.color = "black", outlier.size = 2) +
+  facet_wrap(~ GENDER, nrow = 1, labeller = labeller(GENDER = c(F = "Female", M = "Male", Mix = "Mixed"))) +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Block Percentage by Set Finish and Gender",
+    x = "Set Finish",
+    y = "Block Percentage (%)",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20),
+    axis.title = element_text(face = "bold", size = 16),
+    axis.text = element_text(size = 14),
+    strip.text = element_text(face = "bold", size = 14),
+    legend.position = "none"
+  )
+
+```
+```{r}
+# Density plot of Pace (Throws per Minute) by Set Finish
+ggplot(champ, aes(x = PACE, fill = FINISH)) +
+  geom_density(alpha = 0.5) +  # Semi-transparent density curve
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Pace Distribution by Set Finish",
+    x = "Throws per Minute",
+    y = "Relative Set Frequency",   # Clearer axis label than just "Density"
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 16, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "bold", size = 16, margin = margin(r = 10)),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.position = "top"
+  )
+
+```
+```{r}
+# Density plot of Accuracy (%) by Set Finish
+ggplot(champ, aes(x = ACCURACY_NUM, fill = FINISH)) +
+  geom_density(alpha = 0.5) +  # Semi-transparent density curve
+  scale_fill_manual(
+    values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")
+  ) +
+  labs(
+    title = "Accuracy Distribution by Set Finish",
+    x = "Accuracy (%)",
+    y = "Relative Set Frequency",  # Same wording as Pace plot for consistency
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title.x = element_text(face = "bold", size = 16, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "bold", size = 16, margin = margin(r = 10)),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 14),
+    legend.position = "top"
+  )
+
+```
+
+```{r}
+# Calculate means for each finish group
+means <- champ %>%
+  group_by(FINISH) %>%
+  summarise(mean_pace = mean(PACE, na.rm = TRUE))
+
+# Advanced Ridgeline Plot
+ggplot(champ, aes(x = PACE, y = FINISH, fill = FINISH)) +
+  geom_density_ridges(
+    alpha = 0.6,
+    scale = 1.3,
+    color = "black",
+    size = 0.6,
+    rel_min_height = 0.01  # sharper cutoff at base
+  ) +
+  geom_vline(data = means, aes(xintercept = mean_pace, color = FINISH),
+             linetype = "dashed", size = 1) +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  scale_color_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Pace Distribution by Set Finish",
+    subtitle = "Dashed lines show mean throws per minute for each outcome",
+    x = "Throws per Minute",
+    y = "Set Outcome",
+    fill = "Set Finish",
+    color = "Set Finish"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 22),
+    plot.subtitle = element_text(hjust = 0.5, size = 16, margin = margin(b = 10)),
+    axis.title.x = element_text(face = "bold", size = 18),
+    axis.title.y = element_text(face = "bold", size = 18),
+    axis.text = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 14),
+    panel.grid.major.y = element_blank(),   # clean y grid
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+```{r}
+# Ridgeline plot of Accuracy (%) by Set Finish
+ggplot(champ, aes(x = ACCURACY_NUM, y = FINISH, fill = FINISH)) +
+  geom_density_ridges(alpha = 0.7, scale = 1.2, color = "black", size = 0.6) +  # Smooth density ridges
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Accuracy Distribution by Set Finish",
+    x = "Accuracy (%)",
+    y = "Set Outcome",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold")
+  )
+```
+
+```{r}
+# Ridgeline plot of Block Percentage (%) by Set Finish
+ggplot(champ, aes(x = AVG_BLOCK_PCT, y = FINISH, fill = FINISH)) +
+  geom_density_ridges(alpha = 0.7, scale = 1.2, color = "black", size = 0.6) +  # Smooth density ridges
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Block Percentage Distribution by Set Finish",
+    x = "Block Percentage (%)",
+    y = "Set Outcome",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold")
+  )
+```
+
+```{r}
+# Ridgeline plot of Catch Percentage (%) by Set Finish
+ggplot(champ, aes(x = AVG_CATCH_PCT, y = FINISH, fill = FINISH)) +
+  geom_density_ridges(alpha = 0.7, scale = 1.2, color = "black", size = 0.6) +  # Smooth density ridges
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Catch Percentage Distribution by Set Finish",
+    x = "Catch Percentage (%)",
+    y = "Set Outcome",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold")
+  )
+```
+
+
+
+```{r}
+# Ensure FINISH is capitalized
+champ <- champ %>%
+  mutate(FINISH = case_when(
+    FINISH == "eliminated" ~ "Eliminated",
+    FINISH == "timed out" ~ "Timed Out",
+    TRUE ~ FINISH
+  ))
+
+# Summarize Defense Stats
+defense_summary <- champ %>%
+  group_by(FINISH) %>%
+  summarise(
+    Block = mean(AVG_BLOCK_PCT, na.rm = TRUE),
+    Catch = mean(AVG_CATCH_PCT, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(Block, Catch), names_to = "Defense_Type", values_to = "Percentage")
+
+# Professional Barplot
+ggplot(defense_summary, aes(x = Defense_Type, y = Percentage, fill = FINISH)) +
+  geom_col(position = position_dodge(width = 0.6), width = 0.5, color = "black") +
+  geom_text(aes(label = paste0(round(Percentage, 1), "%")),
+            position = position_dodge(width = 0.6), vjust = -0.8, size = 5, fontface = "bold") +
+  scale_fill_manual(values = c("Eliminated" = "dodgerblue", "Timed Out" = "tomato")) +
+  labs(
+    title = "Comparison of Average Defensive Actions by Set Finish",
+    subtitle = "Block and Catch Rates (%) between Eliminated and Timed Out Sets",
+    x = "Defense Type",
+    y = "Average Percentage (%)",
+    fill = "Set Finish"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 22),
+    plot.subtitle = element_text(hjust = 0.5, size = 16, margin = margin(b = 10)),
+    axis.title.x = element_text(face = "bold", size = 16, margin = margin(t = 10)),
+    axis.title.y = element_text(face = "bold", size = 16, margin = margin(r = 10)),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 14)
+  )
+
+```
+
