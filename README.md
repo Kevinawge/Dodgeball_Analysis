@@ -1,1 +1,7 @@
-# Dodgeball_Analysis
+## Dodging Defeat: A Statistical Exploration of Pace, Accuracy, and Defense in Competitive Dodgeball
+
+# About
+
+This project conducts a quantitative analysis of competitive dodgeball performance by examining the relationship between pace (throws per minute), accuracy (hit rate), and defensive effectiveness (block and catch percentages) on set outcomes—specifically, whether a set ends in elimination or timeout. Using match-level data collected across various gender divisions, we employ descriptive statistics, density estimation, and multivariate visualizations to explore how offensive tempo and defensive success rates interact. Key variables such as Total Throws, Accuracy Rate, Average Block %, and Average Catch % were engineered and summarized to support a structured comparative analysis between different outcome groups.
+
+The analytical approach emphasizes both distributional patterns and central tendency differences using boxplots, density ridgeline plots, bar charts, and scatter plots with stratification by outcome type. Summaries of minimum, maximum, mean, and standard deviation were computed for all numeric variables to characterize variability across sets. This project leverages the R programming language for data manipulation (dplyr), visualization (ggplot2 and ggridges), and tabular reporting (kableExtra). By isolating the statistical relationships between pace, accuracy, and defensive metrics, the project provides evidence for tactical trends in set resolution strategies, offering implications for competitive coaching and player optimization.
